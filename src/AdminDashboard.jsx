@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Users, Flame, Snowflake, Search, RefreshCw, MessageSquare, Trophy, XCircle, BarChart2, List, CheckCircle2 } from 'lucide-react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -12,16 +12,18 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   
   // Estados de Navegação e Filtros
-  const [abaAtiva, setAbaAtiva] = useState('gestao'); // 'gestao' ou 'relatorios'
+  const [abaAtiva, setAbaAtiva] = useState('gestao');
   const [filtroPesquisa, setFiltroPesquisa] = useState('');
   const [filtroStatusIA, setFiltroStatusIA] = useState('Todos');
   const [filtroVenda, setFiltroVenda] = useState('Todos');
+  const [filtroObjetivo, setFiltroObjetivo] = useState('Todos'); // NOVO FILTRO
   const [temaAtivo, setTemaAtivo] = useState('maggia');
 
+  // Tema Porto atualizado para Azul Escuro
   const temas = {
     maggia: { fundo: 'bg-[#0B0F19]', textoBase: 'text-gray-200', titulo: 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500', subtitulo: 'text-gray-400', card: 'bg-gray-800/50 border-gray-700/50', inputBg: 'bg-gray-900 border-gray-600 text-white', tableHeader: 'bg-gray-900/80 border-gray-700 text-gray-300', divisor: 'divide-gray-700/50', textoSecundario: 'text-gray-400' },
     honda: { fundo: 'bg-gray-100', textoBase: 'text-gray-800', titulo: 'text-red-700', subtitulo: 'text-gray-600', card: 'bg-white border-gray-200', inputBg: 'bg-white border-gray-300 text-gray-900', tableHeader: 'bg-gray-50 border-gray-200 text-gray-600', divisor: 'divide-gray-200', textoSecundario: 'text-gray-500' },
-    porto: { fundo: 'bg-slate-50', textoBase: 'text-slate-800', titulo: 'text-blue-700', subtitulo: 'text-slate-600', card: 'bg-white border-slate-200', inputBg: 'bg-white border-slate-300 text-slate-900', tableHeader: 'bg-slate-100 border-slate-200 text-slate-600', divisor: 'divide-slate-200', textoSecundario: 'text-slate-500' },
+    porto: { fundo: 'bg-[#004691]', textoBase: 'text-white', titulo: 'text-blue-100', subtitulo: 'text-blue-200', card: 'bg-blue-900/40 border-blue-800', inputBg: 'bg-blue-950 border-blue-700 text-white', tableHeader: 'bg-blue-950/80 border-blue-800 text-blue-100', divisor: 'divide-blue-800', textoSecundario: 'text-blue-300' },
     premium: { fundo: 'bg-zinc-950', textoBase: 'text-zinc-200', titulo: 'text-[#D4AF37]', subtitulo: 'text-zinc-400', card: 'bg-zinc-900 border-[#D4AF37]/20', inputBg: 'bg-zinc-900 border-zinc-700 text-white', tableHeader: 'bg-zinc-900/80 border-zinc-800 text-zinc-300', divisor: 'divide-zinc-800', textoSecundario: 'text-zinc-400' }
   };
   const t = temas[temaAtivo];
@@ -44,31 +46,43 @@ export default function AdminDashboard() {
 
   useEffect(() => { carregarLeads(); }, []);
 
-  // Função para atualizar o funil de vendas
+  // Lógica de Atualização Otimista (Muda na hora no ecrã)
   const atualizarEtapaVenda = async (id, novaEtapa) => {
+    // 1. Atualiza visualmente primeiro
+    setLeads(leadsAtuais => leadsAtuais.map(lead => 
+      lead.id === id ? { ...lead, etapa_venda: novaEtapa } : lead
+    ));
+
+    // 2. Envia para o banco de dados
     try {
       const { error } = await supabase
         .from('leads_consorcio')
         .update({ etapa_venda: novaEtapa })
         .eq('id', id);
+        
       if (error) throw error;
-      carregarLeads(); // Atualiza a tabela após alterar
     } catch (error) {
       console.error('Erro ao atualizar venda:', error.message);
+      alert("Erro de permissão (RLS) no Supabase ao atualizar.");
+      carregarLeads(); // Reverte caso dê erro
     }
   };
 
-  // Aplicação dos Múltiplos Filtros
+  // Aplicação dos Múltiplos Filtros (Agora com Objetivo)
   const leadsFiltrados = leads.filter(lead => {
     const busca = filtroPesquisa.toLowerCase();
     const matchPesquisa = lead.nome?.toLowerCase().includes(busca) || lead.telefone?.includes(busca);
     const matchIA = filtroStatusIA === 'Todos' || lead.status === filtroStatusIA;
     const etapaAtual = lead.etapa_venda || 'Em Andamento';
     const matchVenda = filtroVenda === 'Todos' || etapaAtual === filtroVenda;
-    return matchPesquisa && matchIA && matchVenda;
+    
+    // Filtro do Objetivo (Imóvel, Carro, etc)
+    const objetivoLead = lead.objetivo ? lead.objetivo.toLowerCase() : '';
+    const matchObjetivo = filtroObjetivo === 'Todos' || objetivoLead.includes(filtroObjetivo.toLowerCase());
+
+    return matchPesquisa && matchIA && matchVenda && matchObjetivo;
   });
 
-  // Dados para os Gráficos
   const vendasFechadas = leads.filter(l => l.etapa_venda === 'Venda Fechada').length;
   const vendasPerdidas = leads.filter(l => l.etapa_venda === 'Perdido').length;
   const emAndamento = leads.filter(l => !l.etapa_venda || l.etapa_venda === 'Em Andamento').length;
@@ -82,14 +96,12 @@ export default function AdminDashboard() {
   return (
     <div className={`min-h-screen p-6 font-sans transition-colors duration-300 ${t.fundo} ${t.textoBase}`}>
       
-      {/* Seletor de Temas */}
       <div className="flex justify-end gap-2 mb-4">
         {Object.keys(temas).map(tema => (
-          <button key={tema} onClick={() => setTemaAtivo(tema)} className="px-3 py-1 text-xs rounded border border-gray-500/30 uppercase">{tema}</button>
+          <button key={tema} onClick={() => setTemaAtivo(tema)} className="px-3 py-1 text-xs rounded border border-gray-500/30 uppercase cursor-pointer hover:scale-105 transition">{tema}</button>
         ))}
       </div>
 
-      {/* Cabeçalho e Abas */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-gray-500/20 pb-4">
         <div>
           <h1 className={`text-3xl font-bold ${t.titulo}`}>Painel de Comando SDR</h1>
@@ -106,22 +118,34 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* CONTEÚDO: GESTÃO DE LEADS */}
       {abaAtiva === 'gestao' && (
         <>
-          {/* Área de Filtros Avançados */}
-          <div className={`border rounded-xl p-4 mb-6 backdrop-blur-sm grid grid-cols-1 md:grid-cols-4 gap-4 ${t.card}`}>
+          {/* Layout de 5 Colunas para acomodar os 4 campos */}
+          <div className={`border rounded-xl p-4 mb-6 backdrop-blur-sm grid grid-cols-1 md:grid-cols-5 gap-4 ${t.card}`}>
             <div className="relative md:col-span-2">
               <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${t.subtitulo}`} size={18} />
               <input 
                 type="text" 
-                placeholder="Pesquisar por nome ou telefone..." 
+                placeholder="Pesquisar..." 
                 value={filtroPesquisa}
                 onChange={(e) => setFiltroPesquisa(e.target.value)}
                 className={`w-full border rounded-lg pl-10 pr-4 py-2 focus:outline-none transition-all ${t.inputBg}`}
               />
             </div>
             
+            <select 
+              value={filtroObjetivo} 
+              onChange={(e) => setFiltroObjetivo(e.target.value)}
+              className={`border rounded-lg px-4 py-2 focus:outline-none transition-all ${t.inputBg}`}
+            >
+              <option value="Todos">Interesse: Todos</option>
+              <option value="imovel">Imóveis</option>
+              <option value="casa">Casas</option>
+              <option value="carro">Carros</option>
+              <option value="moto">Motos</option>
+              <option value="caminhao">Caminhões</option>
+            </select>
+
             <select 
               value={filtroStatusIA} 
               onChange={(e) => setFiltroStatusIA(e.target.value)}
@@ -139,15 +163,14 @@ export default function AdminDashboard() {
             >
               <option value="Todos">Funil: Todos</option>
               <option value="Em Andamento">Em Andamento</option>
-              <option value="Venda Fechada">Vendas Fechadas</option>
+              <option value="Venda Fechada">Fechadas</option>
               <option value="Perdido">Perdidos</option>
             </select>
           </div>
 
-          {/* Tabela de Leads com Novas Ações */}
           <div className={`border rounded-xl overflow-hidden backdrop-blur-sm ${t.card}`}>
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[800px]">
                 <thead>
                   <tr className={`border-b text-sm uppercase tracking-wider ${t.tableHeader}`}>
                     <th className="p-4 font-medium">Classificação</th>
@@ -161,7 +184,7 @@ export default function AdminDashboard() {
                   {loading ? (
                     <tr><td colSpan="5" className={`p-8 text-center ${t.subtitulo}`}>Atualizando dados...</td></tr>
                   ) : leadsFiltrados.map((lead) => (
-                    <tr key={lead.id} className="hover:bg-gray-500/10 transition-colors">
+                    <tr key={lead.id} className="hover:bg-black/10 transition-colors">
                       <td className="p-4">
                         {lead.status === 'QUENTE' ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20"><Flame size={14} /> Quente</span>
@@ -184,10 +207,10 @@ export default function AdminDashboard() {
                       </td>
                       <td className="p-4">
                         <div className="flex justify-center gap-2">
-                          <a href={`https://wa.me/${lead.telefone}`} target="_blank" rel="noreferrer" className="p-2 bg-emerald-600/20 text-emerald-500 rounded hover:bg-emerald-600 hover:text-white" title="WhatsApp"><MessageSquare size={16} /></a>
-                          <button onClick={() => atualizarEtapaVenda(lead.id, 'Venda Fechada')} className="p-2 bg-green-600/20 text-green-500 rounded hover:bg-green-600 hover:text-white" title="Marcar como Ganho"><Trophy size={16} /></button>
-                          <button onClick={() => atualizarEtapaVenda(lead.id, 'Perdido')} className="p-2 bg-red-600/20 text-red-500 rounded hover:bg-red-600 hover:text-white" title="Marcar como Perdido"><XCircle size={16} /></button>
-                          <button onClick={() => atualizarEtapaVenda(lead.id, 'Em Andamento')} className="p-2 bg-blue-600/20 text-blue-500 rounded hover:bg-blue-600 hover:text-white" title="Retomar Andamento"><RefreshCw size={16} /></button>
+                          <a href={`https://wa.me/${lead.telefone}`} target="_blank" rel="noreferrer" className="p-2 bg-emerald-600/20 text-emerald-500 rounded hover:bg-emerald-600 hover:text-white cursor-pointer" title="WhatsApp"><MessageSquare size={16} /></a>
+                          <button onClick={() => atualizarEtapaVenda(lead.id, 'Venda Fechada')} className="p-2 bg-green-600/20 text-green-500 rounded hover:bg-green-600 hover:text-white cursor-pointer" title="Marcar como Ganho"><Trophy size={16} /></button>
+                          <button onClick={() => atualizarEtapaVenda(lead.id, 'Perdido')} className="p-2 bg-red-600/20 text-red-500 rounded hover:bg-red-600 hover:text-white cursor-pointer" title="Marcar como Perdido"><XCircle size={16} /></button>
+                          <button onClick={() => atualizarEtapaVenda(lead.id, 'Em Andamento')} className="p-2 bg-blue-600/20 text-blue-500 rounded hover:bg-blue-600 hover:text-white cursor-pointer" title="Retomar Andamento"><RefreshCw size={16} /></button>
                         </div>
                       </td>
                     </tr>
@@ -199,7 +222,6 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* CONTEÚDO: RELATÓRIOS E GRÁFICOS */}
       {abaAtiva === 'relatorios' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className={`border rounded-xl p-6 ${t.card}`}>
@@ -216,17 +238,11 @@ export default function AdminDashboard() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="flex justify-center gap-4 mt-2">
-              <span className="text-sm flex items-center gap-1 text-blue-500"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Andamento ({emAndamento})</span>
-              <span className="text-sm flex items-center gap-1 text-green-500"><div className="w-3 h-3 rounded-full bg-green-500"></div> Ganhos ({vendasFechadas})</span>
-              <span className="text-sm flex items-center gap-1 text-red-500"><div className="w-3 h-3 rounded-full bg-red-500"></div> Perdidos ({vendasPerdidas})</span>
-            </div>
           </div>
-          
           <div className={`border rounded-xl p-6 flex flex-col justify-center items-center text-center ${t.card}`}>
             <Trophy size={48} className="text-yellow-500 mb-4" />
-            <h3 className={`text-2xl font-bold ${t.titulo}`}>Receita Gerada</h3>
-            <p className={`text-sm mt-2 ${t.subtitulo}`}>Integração de valores de carta para clientes "Ganhos" ficará disponível na próxima atualização do sistema, permitindo calcular comissões automaticamente.</p>
+            <h3 className={`text-2xl font-bold ${t.titulo}`}>Análise de Fecho</h3>
+            <p className={`text-sm mt-2 ${t.subtitulo}`}>Com a nova estrutura, em breve poderemos cruzar os {vendasFechadas} leads fechados com o valor total em cartas de crédito negociadas.</p>
           </div>
         </div>
       )}
