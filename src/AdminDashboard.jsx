@@ -1,30 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient'; // Ajuste o caminho se necessário
-import { Users, Flame, Snowflake, Search, RefreshCw, MessageSquare, Trophy, XCircle, BarChart2, List, DollarSign, Settings, Save, LogOut } from 'lucide-react';
+import { supabase } from './supabaseClient';
+import { Users, Flame, Snowflake, Search, RefreshCw, MessageSquare, Trophy, XCircle, BarChart2, List, DollarSign, Settings, Save, LogOut, Building2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
-export default function AdminDashboard() {
-  // Estados da Aplicação
+// Recebemos a "session" que vem do App.jsx para saber quem está logado
+export default function AdminDashboard({ session }) {
+  const user = session?.user;
+  
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState('gestao');
   
-  // Filtros
   const [filtroPesquisa, setFiltroPesquisa] = useState('');
   const [filtroStatusIA, setFiltroStatusIA] = useState('Todos');
   const [filtroVenda, setFiltroVenda] = useState('Todos');
   const [filtroObjetivo, setFiltroObjetivo] = useState('Todos');
   
-  // Temas
   const [temaAtivo, setTemaAtivo] = useState('maggia');
   
-  // Estados de Configuração da IA
   const [textoPromocoes, setTextoPromocoes] = useState('');
   const [nomeEmpresa, setNomeEmpresa] = useState('');
   const [tomVoz, setTomVoz] = useState('');
   const [salvandoConfig, setSalvandoConfig] = useState(false);
-
-  // NOVO: Estado para a Janela do Parecer (Modal)
   const [modalIA, setModalIA] = useState(null);
 
   const temas = {
@@ -36,12 +33,14 @@ export default function AdminDashboard() {
   const t = temas[temaAtivo];
 
   const carregarDados = async () => {
+    if (!user) return;
     setLoading(true);
     try {
+      // Como o RLS está ativo, o supabase só vai trazer os leads deste utilizador
       const { data: leadsData } = await supabase.from('leads_consorcio').select('*').order('criado_em', { ascending: false });
       if (leadsData) setLeads(leadsData);
 
-      const { data: configData } = await supabase.from('configuracoes_bot').select('*').eq('id', 1).single();
+      const { data: configData } = await supabase.from('configuracoes_bot').select('*').eq('user_id', user.id).single();
       if (configData) {
         setTextoPromocoes(configData.promocoes || '');
         setNomeEmpresa(configData.nome_empresa || '');
@@ -56,7 +55,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     carregarDados();
-  }, []);
+  }, [user]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -64,19 +63,22 @@ export default function AdminDashboard() {
 
   const atualizarEtapaVenda = async (id, novaEtapa) => {
     setLeads(leadsAtuais => leadsAtuais.map(lead => lead.id === id ? { ...lead, etapa_venda: novaEtapa } : lead));
-    try {
-      await supabase.from('leads_consorcio').update({ etapa_venda: novaEtapa }).eq('id', id);
-    } catch (error) {
-      carregarDados();
-    }
+    await supabase.from('leads_consorcio').update({ etapa_venda: novaEtapa }).eq('id', id);
   };
 
   const salvarConfiguracoesIA = async () => {
     setSalvandoConfig(true);
     try {
-      const { error } = await supabase.from('configuracoes_bot').update({ promocoes: textoPromocoes, nome_empresa: nomeEmpresa, tom_voz: tomVoz }).eq('id', 1);
+      // Usamos upsert para criar ou atualizar as configurações deste utilizador
+      const { error } = await supabase.from('configuracoes_bot').upsert({ 
+        user_id: user.id, // Amarra as configurações ao dono da conta
+        promocoes: textoPromocoes, 
+        nome_empresa: nomeEmpresa, 
+        tom_voz: tomVoz 
+      }, { onConflict: 'user_id' }); // Se já existir para este user, atualiza
+      
       if (error) throw error;
-      alert("Configurações da IA atualizadas com sucesso!");
+      alert("Configurações guardadas! O painel e o robô foram atualizados.");
     } catch (error) {
       console.error(error);
       alert("Erro ao guardar as configurações.");
@@ -115,8 +117,13 @@ export default function AdminDashboard() {
     { name: 'Perdidos', value: leads.filter(l => l.etapa_venda === 'Perdido').length, color: '#ef4444' }
   ];
 
+  // Gera a inicial para o "Logotipo"
+  const inicialEmpresa = nomeEmpresa ? nomeEmpresa.charAt(0).toUpperCase() : <Building2 size={24} />;
+
   return (
     <div className={`min-h-screen p-6 font-sans transition-colors duration-300 ${t.fundo} ${t.textoBase}`}>
+      
+      {/* Top Bar - Temas e Logout */}
       <div className="flex justify-between items-center mb-4 border-b border-gray-500/20 pb-4">
         <div className="flex gap-2">
           {Object.keys(temas).map(tema => (
@@ -128,19 +135,32 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      <div className="flex flex-col xl:flex-row justify-between items-center mb-8">
-        <div>
-          <h1 className={`text-3xl font-bold ${t.titulo}`}>Painel de Comando SDR</h1>
-          <p className={`mt-1 ${t.subtitulo}`}>Gestão de Leads e Conversão de Vendas</p>
+      {/* Header Personalizado do Cliente */}
+      <div className="flex flex-col xl:flex-row justify-between items-center mb-8 bg-black/10 p-6 rounded-2xl border border-gray-500/20 backdrop-blur-sm">
+        <div className="flex items-center gap-4">
+          {/* Avatar/Logo da Empresa */}
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-3xl shadow-lg border border-white/10">
+            {inicialEmpresa}
+          </div>
+          <div>
+            <h1 className={`text-3xl font-bold ${t.titulo}`}>
+              {nomeEmpresa ? nomeEmpresa : 'Painel SDR'}
+            </h1>
+            <p className={`mt-1 flex items-center gap-2 ${t.subtitulo}`}>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              SDR Inteligente Conectado | {user?.email}
+            </p>
+          </div>
         </div>
         
-        <div className="flex flex-wrap gap-2 mt-4 xl:mt-0">
+        <div className="flex flex-wrap gap-2 mt-6 xl:mt-0">
           <button onClick={() => setAbaAtiva('gestao')} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${abaAtiva === 'gestao' ? 'bg-blue-600/20 text-blue-500 border border-blue-500/30' : 'bg-transparent border border-gray-500/30'}`}><List size={18} /> Gestão</button>
           <button onClick={() => setAbaAtiva('relatorios')} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${abaAtiva === 'relatorios' ? 'bg-purple-600/20 text-purple-500 border border-purple-500/30' : 'bg-transparent border border-gray-500/30'}`}><BarChart2 size={18} /> Relatórios</button>
-          <button onClick={() => setAbaAtiva('configuracoes')} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${abaAtiva === 'configuracoes' ? 'bg-amber-600/20 text-amber-500 border border-amber-500/30' : 'bg-transparent border border-gray-500/30'}`}><Settings size={18} /> Configurar IA</button>
+          <button onClick={() => setAbaAtiva('configuracoes')} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${abaAtiva === 'configuracoes' ? 'bg-amber-600/20 text-amber-500 border border-amber-500/30' : 'bg-transparent border border-gray-500/30'}`}><Settings size={18} /> Configurações</button>
         </div>
       </div>
 
+      {/* --- ABA DE GESTÃO --- */}
       {abaAtiva === 'gestao' && (
         <>
           <div className={`border rounded-xl p-4 mb-6 backdrop-blur-sm grid grid-cols-1 md:grid-cols-5 gap-4 ${t.card}`}>
@@ -183,7 +203,9 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${t.divisor}`}>
-                  {loading ? <tr><td colSpan="6" className={`p-8 text-center ${t.subtitulo}`}>A carregar dados seguros...</td></tr> : leadsFiltrados.map((lead) => (
+                  {loading ? <tr><td colSpan="6" className={`p-8 text-center ${t.subtitulo}`}>A carregar dados seguros...</td></tr> 
+                  : leadsFiltrados.length === 0 ? <tr><td colSpan="6" className={`p-8 text-center ${t.subtitulo}`}>Nenhum lead encontrado para a sua conta.</td></tr>
+                  : leadsFiltrados.map((lead) => (
                     <tr key={lead.id} className="hover:bg-black/10 transition-colors">
                       <td className="p-4">
                         {lead.status === 'QUENTE' ? <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20"><Flame size={14} /> Quente</span> : <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"><Snowflake size={14} /> Frio</span>}
@@ -217,6 +239,7 @@ export default function AdminDashboard() {
         </>
       )}
 
+      {/* --- ABA DE RELATÓRIOS --- */}
       {abaAtiva === 'relatorios' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className={`border rounded-xl p-6 ${t.card}`}><h3 className={`text-lg font-bold mb-4 ${t.titulo}`}>Conversão Geral</h3><div className="h-64"><ResponsiveContainer><PieChart><Pie data={dadosGraficoFunil} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">{dadosGraficoFunil.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><Tooltip contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }} /></PieChart></ResponsiveContainer></div></div>
@@ -224,15 +247,16 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* --- ABA DE CONFIGURAÇÕES --- */}
       {abaAtiva === 'configuracoes' && (
         <div className={`max-w-4xl border rounded-xl p-6 ${t.card}`}>
-          <h2 className={`text-2xl font-bold mb-2 ${t.titulo}`}>Treinamento e Personalidade da IA</h2>
-          <p className={`mb-8 ${t.subtitulo}`}>Configure como o seu SDR se apresenta e se comporta durante as conversas no WhatsApp.</p>
+          <h2 className={`text-2xl font-bold mb-2 ${t.titulo}`}>Aparência e Treinamento da IA</h2>
+          <p className={`mb-8 ${t.subtitulo}`}>Configure os dados da sua empresa e o comportamento do seu SDR no WhatsApp.</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
-              <label className={`block text-sm font-medium mb-2 ${t.textoBase}`}>Nome da sua Empresa</label>
-              <input type="text" value={nomeEmpresa} onChange={(e) => setNomeEmpresa(e.target.value)} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${t.inputBg}`} />
+              <label className={`block text-sm font-medium mb-2 ${t.textoBase}`}>Nome da sua Empresa (Aparece no Topo)</label>
+              <input type="text" value={nomeEmpresa} onChange={(e) => setNomeEmpresa(e.target.value)} placeholder="Ex: Consórcio Maggia" className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${t.inputBg}`} />
             </div>
             <div>
               <label className={`block text-sm font-medium mb-2 ${t.textoBase}`}>Tom de Voz do Robô</label>
@@ -247,7 +271,7 @@ export default function AdminDashboard() {
 
           <div className="mb-6">
             <label className={`block text-sm font-medium mb-2 ${t.textoBase}`}>Promoções e Avisos Atuais (Contexto Dinâmico)</label>
-            <textarea value={textoPromocoes} onChange={(e) => setTextoPromocoes(e.target.value)} className={`w-full h-32 p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${t.inputBg}`} />
+            <textarea value={textoPromocoes} onChange={(e) => setTextoPromocoes(e.target.value)} placeholder="Digite aqui o que a IA precisa saber hoje..." className={`w-full h-32 p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${t.inputBg}`} />
           </div>
           
           <button onClick={salvarConfiguracoesIA} disabled={salvandoConfig} className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${t.botao} ${salvandoConfig ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -287,7 +311,6 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
