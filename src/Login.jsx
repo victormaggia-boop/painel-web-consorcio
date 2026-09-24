@@ -21,24 +21,61 @@ export default function Login({ onLogin }) {
     setSuccess(null);
     
     if (isLogin) {
+      // --- LÓGICA DE LOGIN ---
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError('Credenciais inválidas. Verifique os seus dados.');
-      else onLogin(data.session);
+      if (error) {
+        setError('Credenciais inválidas. Verifique os seus dados.');
+      } else {
+        onLogin(data.session);
+      }
     } else {
-      if (inviteCode !== CHAVE_MESTRA) {
-        setError('Código de autorização inválido. Registo bloqueado.');
+      // --- LÓGICA DE REGISTO COM CÓDIGO DINÂMICO ---
+      
+      // 1. Validar se o código existe e não foi usado
+      const { data: codeData, error: codeError } = await supabase
+        .from('codigos_acesso')
+        .select('*')
+        .eq('codigo', inviteCode)
+        .eq('usado', false)
+        .single();
+
+      if (codeError || !codeData) {
+        setError('Código de autorização inválido ou já utilizado.');
         setLoading(false);
         return;
       }
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) {
-        setError(error.message);
-      } else {
-        setSuccess('Conta criada com sucesso! Pode iniciar sessão.');
-        setIsLogin(true);
-        setPassword('');
-        setInviteCode('');
+
+      // 2. Criar a conta de utilizador
+      const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+
+      if (authError) {
+        setError(authError.message);
+        setLoading(false);
+        return;
       }
+
+      // 3. Atualizar o código para "usado" e criar a Assinatura (se a conta foi criada com sucesso)
+      if (authData.user) {
+        // Marca o código como usado
+        await supabase
+          .from('codigos_acesso')
+          .update({ usado: true, usado_por: authData.user.id })
+          .eq('codigo', inviteCode);
+
+        // Inicia a assinatura do cliente com o plano atrelado ao código
+        await supabase
+          .from('assinaturas')
+          .insert([{
+              user_id: authData.user.id,
+              plano: codeData.plano,
+              status: 'ativo'
+          }]);
+      }
+
+      setSuccess('Conta criada com sucesso! Pode iniciar sessão.');
+      setIsLogin(true);
+      setPassword('');
+      setInviteCode('');
     }
     
     setLoading(false);
