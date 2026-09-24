@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Users, Flame, Snowflake, Search, RefreshCw, MessageSquare, Trophy, XCircle, BarChart2, List, DollarSign, Settings, Save, LogOut, Building2 } from 'lucide-react';
+import { Users, Flame, Thermometer,Snowflake, Search, RefreshCw, MessageSquare, Trophy, XCircle, BarChart2, List, DollarSign, Settings, Save, LogOut, Building2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 // Recebemos a "session" que vem do App.jsx para saber quem está logado
