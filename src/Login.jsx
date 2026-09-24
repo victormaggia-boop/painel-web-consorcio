@@ -11,9 +11,6 @@ export default function Login({ onLogin }) {
   const [success, setSuccess] = useState(null);
   const [isLogin, setIsLogin] = useState(true);
 
-  // A SUA CHAVE MESTRA DE SEGURANÇA
-  const CHAVE_MESTRA = 'SDR-PRO-2026';
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -67,6 +64,7 @@ export default function Login({ onLogin }) {
           .from('assinaturas')
           .insert([{
               user_id: authData.user.id,
+              email: email, // <-- LINHA ADICIONADA PARA O ADMIN VER QUEM SE REGISTOU
               plano: codeData.plano,
               status: 'ativo'
           }]);
@@ -99,7 +97,6 @@ export default function Login({ onLogin }) {
           
           {/* Caixa do Logótipo Maggia */}
           <div className="inline-flex items-center justify-center w-20 h-20 p-3 rounded-2xl bg-[#0B192C]/50 border border-[#8D99AE]/20 backdrop-blur-sm mb-4 shadow-[0_0_20px_rgba(0,229,255,0.15)]">
-            {/* O Vite vai procurar este ficheiro automaticamente na pasta public/ */}
             <img 
               src="/logo.png" 
               alt="Logótipo Maggia" 
