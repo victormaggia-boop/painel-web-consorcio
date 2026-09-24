@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Users, Flame, Thermometer,Snowflake, Search, RefreshCw, MessageSquare, Trophy, XCircle, BarChart2, List, DollarSign, Settings, Save, LogOut, Building2 } from 'lucide-react';
+import { Users, Flame, Thermometer, Snowflake, Search, RefreshCw, MessageSquare, Trophy, XCircle, BarChart2, List, DollarSign, Settings, Save, LogOut, Building2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 // Recebemos a "session" que vem do App.jsx para saber quem está logado
@@ -179,6 +179,7 @@ export default function AdminDashboard({ session }) {
             <select value={filtroStatusIA} onChange={(e) => setFiltroStatusIA(e.target.value)} className={`border rounded-lg px-4 py-2 focus:outline-none transition-all ${t.inputBg}`}>
               <option value="Todos">Status IA: Todos</option>
               <option value="QUENTE">QUENTES</option>
+              <option value="MORNO">MORNOS</option>
               <option value="FRIO">FRIOS</option>
             </select>
             <select value={filtroVenda} onChange={(e) => setFiltroVenda(e.target.value)} className={`border rounded-lg px-4 py-2 focus:outline-none transition-all ${t.inputBg}`}>
@@ -208,7 +209,19 @@ export default function AdminDashboard({ session }) {
                   : leadsFiltrados.map((lead) => (
                     <tr key={lead.id} className="hover:bg-black/10 transition-colors">
                       <td className="p-4">
-                        {lead.status === 'QUENTE' ? <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20"><Flame size={14} /> Quente</span> : <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"><Snowflake size={14} /> Frio</span>}
+                        {lead.status === 'QUENTE' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">
+                            <Flame size={14} /> Quente
+                          </span>
+                        ) : lead.status === 'MORNO' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                            <Thermometer size={14} /> Morno
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                            <Snowflake size={14} /> Frio
+                          </span>
+                        )}
                       </td>
                       <td className="p-4">
                         <p className="font-semibold">{lead.nome}</p>
