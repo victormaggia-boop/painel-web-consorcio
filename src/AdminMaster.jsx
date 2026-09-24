@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Key, Plus, Copy, Check, Star, ShieldAlert, Users, Power } from 'lucide-react';
+import { Key, Plus, Copy, Check, Star, ShieldAlert, Users, Power, LogOut } from 'lucide-react';
 
 export default function AdminMaster() {
   const [codigos, setCodigos] = useState([]);
@@ -48,21 +48,38 @@ export default function AdminMaster() {
     fetchDados();
   };
 
+  // --- NOVA FUNÇÃO DE LOGOUT ---
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload(); 
+  };
+  
+
   return (
     <div className="min-h-screen bg-[#050508] p-8 font-sans selection:bg-[#00E5FF] selection:text-[#050508]">
       <div className="max-w-6xl mx-auto">
         
-        {/* Cabeçalho */}
-        <div className="flex items-center gap-4 mb-10 border-b border-[#8D99AE]/20 pb-6">
-          <div className="w-12 h-12 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-center text-red-500">
-            <ShieldAlert size={24} />
+        {/* Cabeçalho ATUALIZADO com o botão de Logout */}
+        <div className="flex items-center justify-between mb-10 border-b border-[#8D99AE]/20 pb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-center text-red-500">
+              <ShieldAlert size={24} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-[#FFFFFF] font-['Orbitron']">
+                Maggia <span className="text-red-500">Master Admin</span>
+              </h1>
+              <p className="text-[#8D99AE] text-sm font-['Inter']">Gestão de Licenças e Clientes</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold text-[#FFFFFF] font-['Orbitron']">
-              Maggia <span className="text-red-500">Master Admin</span>
-            </h1>
-            <p className="text-[#8D99AE] text-sm font-['Inter']">Gestão de Licenças e Clientes</p>
-          </div>
+          
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#050508] border border-[#8D99AE]/30 text-[#8D99AE] rounded-xl hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400 transition-all group"
+          >
+            <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
+            <span className="hidden sm:inline font-medium text-sm">Terminar Sessão</span>
+          </button>
         </div>
 
         {/* Controlos de Geração de Códigos */}
