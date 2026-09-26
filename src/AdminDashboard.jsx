@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Users, Flame, Thermometer, Snowflake, Search, RefreshCw, MessageSquare, Trophy, XCircle, BarChart2, List, DollarSign, Settings, Save, LogOut, Building2 } from 'lucide-react';
+import { Users, Smartphone, CheckCircle, AlertCircle, Flame, Thermometer, Snowflake, Search, RefreshCw, MessageSquare, Trophy, XCircle, BarChart2, List, DollarSign, Settings, Save, LogOut, Building2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { QRCodeSVG } from 'qrcode.react';
 
-// Recebemos a "session" que vem do App.jsx para saber quem está logado
 export default function AdminDashboard({ session }) {
   const user = session?.user;
   
@@ -24,6 +24,10 @@ export default function AdminDashboard({ session }) {
   const [salvandoConfig, setSalvandoConfig] = useState(false);
   const [modalIA, setModalIA] = useState(null);
 
+  // --- NOVOS ESTADOS PARA O QR CODE ---
+  const [qrCode, setQrCode] = useState(null);
+  const [statusBot, setStatusBot] = useState('desconectado');
+
   const temas = {
     maggia: { fundo: 'bg-[#0B0F19]', textoBase: 'text-gray-200', titulo: 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500', subtitulo: 'text-gray-400', card: 'bg-gray-800/50 border-gray-700/50', inputBg: 'bg-gray-900 border-gray-600 text-white', tableHeader: 'bg-gray-900/80 border-gray-700 text-gray-300', divisor: 'divide-gray-700/50', textoSecundario: 'text-gray-400', botao: 'bg-blue-600 hover:bg-blue-700 text-white' },
     honda: { fundo: 'bg-gray-100', textoBase: 'text-gray-800', titulo: 'text-red-700', subtitulo: 'text-gray-600', card: 'bg-white border-gray-200', inputBg: 'bg-white border-gray-300 text-gray-900', tableHeader: 'bg-gray-50 border-gray-200 text-gray-600', divisor: 'divide-gray-200', textoSecundario: 'text-gray-500', botao: 'bg-red-700 hover:bg-red-800 text-white' },
@@ -32,11 +36,11 @@ export default function AdminDashboard({ session }) {
   };
   const t = temas[temaAtivo];
 
+  // Carrega os dados iniciais
   const carregarDados = async () => {
     if (!user) return;
     setLoading(true);
     try {
-      // Como o RLS está ativo, o supabase só vai trazer os leads deste utilizador
       const { data: leadsData } = await supabase.from('leads_consorcio').select('*').order('criado_em', { ascending: false });
       if (leadsData) setLeads(leadsData);
 
@@ -57,6 +61,45 @@ export default function AdminDashboard({ session }) {
     carregarDados();
   }, [user]);
 
+  // --- NOVO EFEITO: ESCUTAR O STATUS DO WHATSAPP EM TEMPO REAL ---
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchBotStatus = async () => {
+      const { data } = await supabase
+        .from('configuracoes_bot')
+        .select('qr_code, status_conexao')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (data) {
+        setQrCode(data.qr_code);
+        setStatusBot(data.status_conexao || 'desconectado');
+      }
+    };
+
+    fetchBotStatus();
+
+    const canal = supabase
+      .channel('mudancas_bot')
+      .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'configuracoes_bot', 
+          filter: `user_id=eq.${user.id}` 
+      }, (payload) => {
+          if (payload.new) {
+              setQrCode(payload.new.qr_code);
+              setStatusBot(payload.new.status_conexao);
+          }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
+  }, [user]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
@@ -69,13 +112,12 @@ export default function AdminDashboard({ session }) {
   const salvarConfiguracoesIA = async () => {
     setSalvandoConfig(true);
     try {
-      // Usamos upsert para criar ou atualizar as configurações deste utilizador
       const { error } = await supabase.from('configuracoes_bot').upsert({ 
-        user_id: user.id, // Amarra as configurações ao dono da conta
+        user_id: user.id, 
         promocoes: textoPromocoes, 
         nome_empresa: nomeEmpresa, 
         tom_voz: tomVoz 
-      }, { onConflict: 'user_id' }); // Se já existir para este user, atualiza
+      }, { onConflict: 'user_id' }); 
       
       if (error) throw error;
       alert("Configurações guardadas! O painel e o robô foram atualizados.");
@@ -117,13 +159,11 @@ export default function AdminDashboard({ session }) {
     { name: 'Perdidos', value: leads.filter(l => l.etapa_venda === 'Perdido').length, color: '#ef4444' }
   ];
 
-  // Gera a inicial para o "Logotipo"
   const inicialEmpresa = nomeEmpresa ? nomeEmpresa.charAt(0).toUpperCase() : <Building2 size={24} />;
 
   return (
     <div className={`min-h-screen p-6 font-sans transition-colors duration-300 ${t.fundo} ${t.textoBase}`}>
       
-      {/* Top Bar - Temas e Logout */}
       <div className="flex justify-between items-center mb-4 border-b border-gray-500/20 pb-4">
         <div className="flex gap-2">
           {Object.keys(temas).map(tema => (
@@ -135,10 +175,8 @@ export default function AdminDashboard({ session }) {
         </button>
       </div>
 
-      {/* Header Personalizado do Cliente */}
       <div className="flex flex-col xl:flex-row justify-between items-center mb-8 bg-black/10 p-6 rounded-2xl border border-gray-500/20 backdrop-blur-sm">
         <div className="flex items-center gap-4">
-          {/* Avatar/Logo da Empresa */}
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-3xl shadow-lg border border-white/10">
             {inicialEmpresa}
           </div>
@@ -147,8 +185,8 @@ export default function AdminDashboard({ session }) {
               {nomeEmpresa ? nomeEmpresa : 'Painel SDR'}
             </h1>
             <p className={`mt-1 flex items-center gap-2 ${t.subtitulo}`}>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              SDR Inteligente Conectado | {user?.email}
+              <span className={`w-2 h-2 rounded-full ${statusBot === 'conectado' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
+              {statusBot === 'conectado' ? `SDR Conectado | ${user?.email}` : `SDR Desconectado | ${user?.email}`}
             </p>
           </div>
         </div>
@@ -163,6 +201,44 @@ export default function AdminDashboard({ session }) {
       {/* --- ABA DE GESTÃO --- */}
       {abaAtiva === 'gestao' && (
         <>
+          {/* BLOCO DO QR CODE INJETADO AQUI */}
+          <div className={`border rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-lg mb-6 w-full lg:w-1/2 mx-auto ${t.card}`}>
+              <h2 className={`text-xl font-bold mb-6 flex items-center gap-2 ${t.titulo}`}>
+                  <Smartphone size={20} className="text-[#00E5FF]" /> Status da Conexão WhatsApp
+              </h2>
+              
+              {statusBot === 'conectado' && (
+                  <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
+                      <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center text-emerald-400 mb-4">
+                          <CheckCircle size={32} />
+                      </div>
+                      <p className="text-emerald-400 font-bold text-lg">Robô Online e Pronto!</p>
+                      <p className={`text-sm mt-2 ${t.subtitulo}`}>O seu telemóvel está conectado e a triar leads automaticamente.</p>
+                  </div>
+              )}
+
+              {statusBot === 'aguardando' && qrCode && (
+                  <div className="flex flex-col items-center animate-in fade-in duration-500">
+                      <div className="bg-white p-3 rounded-xl mb-4 shadow-[0_0_20px_rgba(0,229,255,0.2)]">
+                          <QRCodeSVG value={qrCode} size={180} />
+                      </div>
+                      <p className="text-[#00E5FF] font-bold text-lg">Aguardando Leitura</p>
+                      <p className={`text-sm mt-2 ${t.subtitulo}`}>Abra o WhatsApp, vá a "Dispositivos Ligados" e aponte a câmara.</p>
+                  </div>
+              )}
+
+              {statusBot === 'desconectado' && (
+                  <div className="flex flex-col items-center animate-in fade-in duration-500">
+                      <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-full flex items-center justify-center text-red-400 mb-4 animate-pulse">
+                          <AlertCircle size={32} />
+                      </div>
+                      <p className="text-red-400 font-bold text-lg">Sistema Desconectado</p>
+                      <p className={`text-sm mt-2 ${t.subtitulo}`}>O servidor está a preparar o código de ligação. Aguarde...</p>
+                  </div>
+              )}
+          </div>
+
+          {/* Filtros da Tabela */}
           <div className={`border rounded-xl p-4 mb-6 backdrop-blur-sm grid grid-cols-1 md:grid-cols-5 gap-4 ${t.card}`}>
             <div className="relative md:col-span-2">
               <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${t.subtitulo}`} size={18} />
