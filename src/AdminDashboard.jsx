@@ -23,6 +23,7 @@ export default function AdminDashboard({ session }) {
   const [tomVoz, setTomVoz] = useState('');
   const [salvandoConfig, setSalvandoConfig] = useState(false);
   const [modalIA, setModalIA] = useState(null);
+  const [promptPersonalizado, setPromptPersonalizado] = useState('');
 
   // --- NOVOS ESTADOS PARA O QR CODE ---
   const [qrCode, setQrCode] = useState(null);
@@ -49,6 +50,7 @@ export default function AdminDashboard({ session }) {
         setTextoPromocoes(configData.promocoes || '');
         setNomeEmpresa(configData.nome_empresa || '');
         setTomVoz(configData.tom_voz || '');
+        setPromptPersonalizado(configData.prompt_personalizado || '');
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -116,7 +118,8 @@ export default function AdminDashboard({ session }) {
         user_id: user.id, 
         promocoes: textoPromocoes, 
         nome_empresa: nomeEmpresa, 
-        tom_voz: tomVoz 
+        tom_voz: tomVoz,
+        prompt_personalizado: promptPersonalizado
       }, { onConflict: 'user_id' }); 
       
       if (error) throw error;
@@ -336,7 +339,7 @@ export default function AdminDashboard({ session }) {
         </div>
       )}
 
-      {/* --- ABA DE CONFIGURAÇÕES --- */}
+     {/* --- ABA DE CONFIGURAÇÕES --- */}
       {abaAtiva === 'configuracoes' && (
         <div className={`max-w-4xl border rounded-xl p-6 ${t.card}`}>
           <h2 className={`text-2xl font-bold mb-2 ${t.titulo}`}>Aparência e Treinamento da IA</h2>
@@ -361,6 +364,28 @@ export default function AdminDashboard({ session }) {
           <div className="mb-6">
             <label className={`block text-sm font-medium mb-2 ${t.textoBase}`}>Promoções e Avisos Atuais (Contexto Dinâmico)</label>
             <textarea value={textoPromocoes} onChange={(e) => setTextoPromocoes(e.target.value)} placeholder="Digite aqui o que a IA precisa saber hoje..." className={`w-full h-32 p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${t.inputBg}`} />
+          </div>
+
+          {/* SECÇÃO PREMIUM: PROMPT PERSONALIZADO */}
+          <div className="mb-8 border border-amber-500/30 bg-amber-500/5 rounded-xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-gradient-to-r from-amber-500 to-yellow-400 text-zinc-900 text-xs font-bold px-4 py-1.5 rounded-bl-lg shadow-lg">
+              👑 Função Premium
+            </div>
+            
+            <h3 className="text-lg font-bold mb-2 text-amber-500">
+              Treinamento Avançado (Custom Prompt)
+            </h3>
+            <p className={`mb-4 text-sm ${t.subtitulo}`}>
+              Substitua a personalidade padrão e crie as suas próprias regras e gatilhos de vendas. 
+              (As regras obrigatórias de sistema continuam ativas e protegidas).
+            </p>
+            
+            <textarea 
+              value={promptPersonalizado} 
+              onChange={(e) => setPromptPersonalizado(e.target.value)} 
+              placeholder="Ex: Você é o Carlos, o maior especialista de consórcios do país. O seu objetivo é vender usando a técnica SPIN Selling..." 
+              className={`w-full h-48 p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all ${t.inputBg} border-amber-500/30 focus:border-amber-500`} 
+            />
           </div>
           
           <button onClick={salvarConfiguracoesIA} disabled={salvandoConfig} className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${t.botao} ${salvandoConfig ? 'opacity-50 cursor-not-allowed' : ''}`}>
