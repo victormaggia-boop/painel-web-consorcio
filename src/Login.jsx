@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from './supabaseClient';
-import { Mail, Lock, LogIn, UserPlus, Key } from 'lucide-react';
+import { Mail, Lock, LogIn, UserPlus, Key, ArrowLeft } from 'lucide-react';
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -10,7 +10,35 @@ export default function Login({ onLogin }) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [isLogin, setIsLogin] = useState(true);
+  
+  // NOVO ESTADO: Controla se estamos no ecrã de recuperar a senha
+  const [modoRecuperacao, setModoRecuperacao] = useState(false);
 
+  // --- LÓGICA DE RECUPERAÇÃO DE SENHA ---
+  const handleRecuperarSenha = async (e) => {
+    e.preventDefault();
+    if (!email) {
+      setError('Por favor, insira o seu e-mail primeiro.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin, // Volta para a raiz do seu site
+    });
+
+    if (error) {
+      setError('Erro ao enviar e-mail: ' + error.message);
+    } else {
+      setSuccess('Sucesso! Verifique a sua caixa de entrada (e o spam) para redefinir a palavra-passe.');
+      setTimeout(() => setModoRecuperacao(false), 6000); // Volta ao login normal após 6 segundos
+    }
+    setLoading(false);
+  };
+
+  // --- LÓGICA ORIGINAL DE LOGIN E REGISTO ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -111,73 +139,111 @@ export default function Login({ onLogin }) {
         </div>
 
         {/* Cartão de Login - Glassmorphism Maggia */}
-        <form onSubmit={handleSubmit} className="bg-[#0B192C]/80 backdrop-blur-[12px] border border-[#8D99AE]/20 p-8 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-500 font-['Inter']">
+        <form onSubmit={modoRecuperacao ? handleRecuperarSenha : handleSubmit} className="bg-[#0B192C]/80 backdrop-blur-[12px] border border-[#8D99AE]/20 p-8 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-500 font-['Inter']">
+          
           <h2 className="text-xl font-semibold mb-6 text-[#FFFFFF] text-center font-['Orbitron']">
-            {isLogin ? 'Acesso Restrito' : 'Registo de Corretor'}
+            {modoRecuperacao ? 'Recuperar Acesso' : (isLogin ? 'Acesso Restrito' : 'Registo de Corretor')}
           </h2>
           
           {error && <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg mb-4 text-sm text-center">{error}</div>}
           {success && <div className="bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] p-3 rounded-lg mb-4 text-sm text-center">{success}</div>}
           
           <div className="space-y-4 mb-6">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-[#8D99AE]" />
-              </div>
-              <input 
-                type="email" 
-                placeholder="E-mail corporativo" 
-                required 
-                className="w-full pl-10 pr-4 py-3 bg-[#050508]/80 border border-[#8D99AE]/30 rounded-xl text-[#FFFFFF] placeholder-[#8D99AE] focus:outline-none focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF]/50 transition-all backdrop-blur-sm" 
-                value={email} 
-                onChange={e => setEmail(e.target.value)} 
-              />
-            </div>
             
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-[#8D99AE]" />
-              </div>
-              <input 
-                type="password" 
-                placeholder="Palavra-passe" 
-                required 
-                minLength="6"
-                className="w-full pl-10 pr-4 py-3 bg-[#050508]/80 border border-[#8D99AE]/30 rounded-xl text-[#FFFFFF] placeholder-[#8D99AE] focus:outline-none focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF]/50 transition-all backdrop-blur-sm" 
-                value={password} 
-                onChange={e => setPassword(e.target.value)} 
-              />
-            </div>
-
-            {!isLogin && (
-              <div className="relative animate-in fade-in zoom-in duration-300">
+            {/* Campo E-mail - Sempre Visível */}
+            <div>
+              <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Key className="h-5 w-5 text-[#D4AF37]" />
+                  <Mail className="h-5 w-5 text-[#8D99AE]" />
                 </div>
                 <input 
-                  type="text" 
-                  placeholder="Código de Autorização" 
-                  required={!isLogin}
-                  className="w-full pl-10 pr-4 py-3 bg-[#050508]/80 border border-[#D4AF37]/50 rounded-xl text-[#FFFFFF] placeholder-[#8D99AE] focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/50 transition-all backdrop-blur-sm" 
-                  value={inviteCode} 
-                  onChange={e => setInviteCode(e.target.value)} 
+                  type="email" 
+                  placeholder="E-mail corporativo" 
+                  required 
+                  className="w-full pl-10 pr-4 py-3 bg-[#050508]/80 border border-[#8D99AE]/30 rounded-xl text-[#FFFFFF] placeholder-[#8D99AE] focus:outline-none focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF]/50 transition-all backdrop-blur-sm" 
+                  value={email} 
+                  onChange={e => setEmail(e.target.value)} 
                 />
               </div>
+            </div>
+            
+            {/* Esconde Senha e Código se estivermos no modo Recuperação */}
+            {!modoRecuperacao && (
+              <>
+                <div>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Lock className="h-5 w-5 text-[#8D99AE]" />
+                    </div>
+                    <input 
+                      type="password" 
+                      placeholder="Palavra-passe" 
+                      required 
+                      minLength="6"
+                      className="w-full pl-10 pr-4 py-3 bg-[#050508]/80 border border-[#8D99AE]/30 rounded-xl text-[#FFFFFF] placeholder-[#8D99AE] focus:outline-none focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF]/50 transition-all backdrop-blur-sm" 
+                      value={password} 
+                      onChange={e => setPassword(e.target.value)} 
+                    />
+                  </div>
+                  
+                  {/* Botão de Esqueci a Senha - Apenas no modo de Login */}
+                  {isLogin && (
+                    <div className="flex justify-end mt-2">
+                      <button 
+                        type="button" 
+                        onClick={() => { setModoRecuperacao(true); setError(null); setSuccess(null); }}
+                        className="text-xs text-[#00E5FF] hover:text-[#00C2D6] transition-colors font-medium"
+                      >
+                        Esqueceu-se da palavra-passe?
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {!isLogin && (
+                  <div className="relative animate-in fade-in zoom-in duration-300">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Key className="h-5 w-5 text-[#D4AF37]" />
+                    </div>
+                    <input 
+                      type="text" 
+                      placeholder="Código de Autorização" 
+                      required={!isLogin}
+                      className="w-full pl-10 pr-4 py-3 bg-[#050508]/80 border border-[#D4AF37]/50 rounded-xl text-[#FFFFFF] placeholder-[#8D99AE] focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/50 transition-all backdrop-blur-sm" 
+                      value={inviteCode} 
+                      onChange={e => setInviteCode(e.target.value)} 
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
           
           <button type="submit" disabled={loading} className="w-full bg-[#00E5FF] hover:bg-[#00C2D6] text-[#050508] py-3 rounded-xl font-bold shadow-[0_0_12px_rgba(0,229,255,0.4)] transition-all flex justify-center items-center gap-2">
-            {loading ? 'A processar...' : (isLogin ? <><LogIn size={18} /> Autenticar</> : <><UserPlus size={18} /> Criar Conta</>)}
+            {loading ? 'A processar...' : (
+              modoRecuperacao ? <><Mail size={18} /> Enviar Link de Recuperação</> :
+              (isLogin ? <><LogIn size={18} /> Autenticar</> : <><UserPlus size={18} /> Criar Conta</>)
+            )}
           </button>
 
           <div className="mt-6 text-center">
-            <button 
-              type="button"
-              onClick={() => { setIsLogin(!isLogin); setError(null); setSuccess(null); }} 
-              className="text-sm text-[#8D99AE] hover:text-[#FFFFFF] transition-colors"
-            >
-              {isLogin ? 'Sem acesso? Solicite uma conta aqui.' : 'Já tem acesso? Inicie sessão.'}
-            </button>
+            {modoRecuperacao ? (
+              <button 
+                type="button"
+                onClick={() => { setModoRecuperacao(false); setError(null); setSuccess(null); }} 
+                className="text-sm text-[#8D99AE] hover:text-[#FFFFFF] transition-colors flex items-center justify-center gap-2 mx-auto"
+              >
+                <ArrowLeft size={16} /> Voltar para o Login
+              </button>
+            ) : (
+              <button 
+                type="button"
+                onClick={() => { setIsLogin(!isLogin); setError(null); setSuccess(null); }} 
+                className="text-sm text-[#8D99AE] hover:text-[#FFFFFF] transition-colors"
+              >
+                {isLogin ? 'Sem acesso? Solicite uma conta aqui.' : 'Já tem acesso? Inicie sessão.'}
+              </button>
+            )}
           </div>
         </form>
         
